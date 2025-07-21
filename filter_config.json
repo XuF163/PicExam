@@ -1,0 +1,8 @@
+{
+    "max_concurrent": 10,
+    "api_delay": 0.1,
+    "max_retries": 3,
+    "timeout": 60,
+    "target_folder": "@色图",
+    "log_level": "INFO"
+}

@@ -1,0 +1,159 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送以 v 开头的标签时触发，如 v1.0.0
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+          
+          ### 新功能
+          - 自动构建的多平台可执行文件
+          - 支持 Windows、Linux、macOS 三大平台
+          
+          ### 下载说明
+          - **Windows用户**: 下载 `PicExam-Windows.zip`
+          - **Linux用户**: 下载 `PicExam-Linux.zip`
+          - **macOS用户**: 下载 `PicExam-macOS.zip`
+          
+          ### 使用方法
+          1. 下载对应平台的压缩包
+          2. 解压到任意目录
+          3. 运行可执行文件
+          4. 根据提示配置和使用
+          
+          ---
+          
+          **完整更新日志请查看提交历史**
+        draft: false
+        prerelease: false
+
+  build-and-upload:
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            executable_name: "图片内容过滤系统.exe"
+            artifact_name: "PicExam-Windows"
+            asset_name: "PicExam-Windows.zip"
+          - os: ubuntu-latest
+            platform: linux
+            executable_name: "图片内容过滤系统"
+            artifact_name: "PicExam-Linux"
+            asset_name: "PicExam-Linux.zip"
+          - os: macos-latest
+            platform: macos
+            executable_name: "图片内容过滤系统"
+            artifact_name: "PicExam-macOS"
+            asset_name: "PicExam-macOS.zip"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build executable (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        pyinstaller --name="图片内容过滤系统" ^
+          --onefile ^
+          --console ^
+          --clean ^
+          --add-data="ultra_fast_filter.py;." ^
+          --add-data="remove_approval_tags.py;." ^
+          --add-data="filter_config.json;." ^
+          image_filter_main.py
+      shell: cmd
+
+    - name: Build executable (Linux/macOS)
+      if: matrix.platform != 'windows'
+      run: |
+        pyinstaller --name="图片内容过滤系统" \
+          --onefile \
+          --console \
+          --clean \
+          --add-data="ultra_fast_filter.py:." \
+          --add-data="remove_approval_tags.py:." \
+          --add-data="filter_config.json:." \
+          image_filter_main.py
+
+    - name: Prepare release files
+      run: |
+        mkdir -p release
+      shell: bash
+
+    - name: Copy files (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        copy "dist\图片内容过滤系统.exe" "release\"
+        copy "filter_config.json" "release\"
+        copy "config.json" "release\" 2>nul || echo "config.json not found, skipping"
+        echo "图片内容过滤系统 - Windows版本" > "release\README.txt"
+        echo "使用方法：双击运行 图片内容过滤系统.exe" >> "release\README.txt"
+      shell: cmd
+
+    - name: Copy files (Linux/macOS)
+      if: matrix.platform != 'windows'
+      run: |
+        cp "dist/图片内容过滤系统" "release/"
+        cp "filter_config.json" "release/"
+        cp "config.json" "release/" 2>/dev/null || echo "config.json not found, skipping"
+        echo "图片内容过滤系统 - ${{ matrix.platform }} 版本" > "release/README.txt"
+        echo "使用方法：在终端中运行 ./图片内容过滤系统" >> "release/README.txt"
+        chmod +x "release/图片内容过滤系统"
+
+    - name: Create ZIP archive
+      run: |
+        cd release
+        if [ "${{ matrix.platform }}" = "windows" ]; then
+          7z a "../${{ matrix.asset_name }}" *
+        else
+          zip -r "../${{ matrix.asset_name }}" *
+        fi
+      shell: bash
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./${{ matrix.asset_name }}
+        asset_name: ${{ matrix.asset_name }}
+        asset_content_type: application/zip
