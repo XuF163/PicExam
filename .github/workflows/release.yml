@@ -6,54 +6,7 @@ on:
       - 'v*'  # 当推送以 v 开头的标签时触发，如 v1.0.0
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Get version from tag
-      id: get_version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
-        body: |
-          ## 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
-          
-          ### 新功能
-          - 自动构建的多平台可执行文件
-          - 支持 Windows、Linux、macOS 三大平台
-          
-          ### 下载说明
-          - **Windows用户**: 下载 `PicExam-Windows.zip`
-          - **Linux用户**: 下载 `PicExam-Linux.zip`
-          - **macOS用户**: 下载 `PicExam-macOS.zip`
-          
-          ### 使用方法
-          1. 下载对应平台的压缩包
-          2. 解压到任意目录
-          3. 运行可执行文件
-          4. 根据提示配置和使用
-          
-          ---
-          
-          **完整更新日志请查看提交历史**
-        draft: false
-        prerelease: false
-
-  build-and-upload:
-    needs: create-release
+  build-and-release:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -78,8 +31,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
@@ -148,12 +105,34 @@ jobs:
         fi
       shell: bash
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Create Release and Upload Assets
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./${{ matrix.asset_name }}
-        asset_name: ${{ matrix.asset_name }}
-        asset_content_type: application/zip
+        tag_name: ${{ github.ref }}
+        name: 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+
+          ### 新功能
+          - 自动构建的多平台可执行文件
+          - 支持 Windows、Linux、macOS 三大平台
+
+          ### 下载说明
+          - **Windows用户**: 下载 `PicExam-Windows.zip`
+          - **Linux用户**: 下载 `PicExam-Linux.zip`
+          - **macOS用户**: 下载 `PicExam-macOS.zip`
+
+          ### 使用方法
+          1. 下载对应平台的压缩包
+          2. 解压到任意目录
+          3. 运行可执行文件
+          4. 根据提示配置和使用
+
+          ---
+
+          **完整更新日志请查看提交历史**
+        files: ./${{ matrix.asset_name }}
+        draft: false
+        prerelease: false
