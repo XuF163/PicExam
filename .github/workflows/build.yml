@@ -32,12 +32,12 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -103,22 +103,11 @@ jobs:
         chmod +x "release/图片内容过滤系统"
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
         path: release/
         retention-days: 30
-
-    - name: Upload to release (if release event)
-      if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: release/
-        asset_name: ${{ matrix.artifact_name }}.zip
-        asset_content_type: application/zip
 
   # 创建发布摘要
   create-summary:
@@ -127,7 +116,7 @@ jobs:
     if: always()
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Create build summary
       run: |
