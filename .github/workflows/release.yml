@@ -78,9 +78,26 @@ jobs:
     - name: Copy files (Windows)
       if: matrix.platform == 'windows'
       run: |
-        copy "dist\图片内容过滤系统.exe" "release\"
-        copy "filter_config.json" "release\"
-        copy "config.json" "release\" 2>nul || echo "config.json not found, skipping"
+        if exist "dist\图片内容过滤系统.exe" (
+          copy "dist\图片内容过滤系统.exe" "release\"
+          echo "Executable copied successfully"
+        ) else (
+          echo "ERROR: Executable not found!"
+          exit /b 1
+        )
+        if exist "filter_config.json" (
+          copy "filter_config.json" "release\"
+          echo "filter_config.json copied successfully"
+        ) else (
+          echo "ERROR: filter_config.json not found!"
+          exit /b 1
+        )
+        if exist "config.json" (
+          copy "config.json" "release\"
+          echo "config.json copied successfully"
+        ) else (
+          echo "config.json not found, skipping (optional file)"
+        )
         echo "图片内容过滤系统 - Windows版本" > "release\README.txt"
         echo "使用方法：双击运行 图片内容过滤系统.exe" >> "release\README.txt"
       shell: cmd
@@ -88,9 +105,26 @@ jobs:
     - name: Copy files (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        cp "dist/图片内容过滤系统" "release/"
-        cp "filter_config.json" "release/"
-        cp "config.json" "release/" 2>/dev/null || echo "config.json not found, skipping"
+        if [ -f "dist/图片内容过滤系统" ]; then
+          cp "dist/图片内容过滤系统" "release/"
+          echo "Executable copied successfully"
+        else
+          echo "ERROR: Executable not found!"
+          exit 1
+        fi
+        if [ -f "filter_config.json" ]; then
+          cp "filter_config.json" "release/"
+          echo "filter_config.json copied successfully"
+        else
+          echo "ERROR: filter_config.json not found!"
+          exit 1
+        fi
+        if [ -f "config.json" ]; then
+          cp "config.json" "release/"
+          echo "config.json copied successfully"
+        else
+          echo "config.json not found, skipping (optional file)"
+        fi
         echo "图片内容过滤系统 - ${{ matrix.platform }} 版本" > "release/README.txt"
         echo "使用方法：在终端中运行 ./图片内容过滤系统" >> "release/README.txt"
         chmod +x "release/图片内容过滤系统"
