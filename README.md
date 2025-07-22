@@ -128,35 +128,14 @@ python image_filter_main.py
 
 ### 💡 准确率
 - **AI模型**: GLM-4.1V-Thinking-FlashX
-- **检测准确率**: >95% (基于内部测试)
-- **误报率**: <3%
 - **置信度阈值**: 可调节
-
+- **自适应图片压缩**:大图也能审，不会爆token
+  
 ### 🛠️ 资源占用
 - **内存使用**: 50-200MB (取决于并发数)
 - **CPU占用**: 中等 (主要为网络IO等待)
 - **网络带宽**: 取决于图片大小和并发数
 - **磁盘IO**: 最小化 (临时文件管理)
-
-## 📁 项目结构
-
-```
-PicExam/
-├── 📄 image_filter_main.py      # 主程序入口
-├── ⚡ ultra_fast_filter.py      # 超高速过滤器
-├── 🚀 fast_concurrent_filter.py # 真正并发过滤器
-├── 🏷️ remove_approval_tags.py   # 标记清除工具
-├── ⚙️ config.json              # 用户配置文件
-├── 📋 filter_config.json       # 过滤器配置
-├── 📦 requirements.txt         # Python依赖
-├── 🔨 build.bat               # Windows构建脚本
-├── 🐍 build_exe.py            # Python构建脚本
-├── 📊 *.log                   # 日志文件
-├── 📁 .github/                # GitHub Actions
-│   ├── workflows/             # 工作流配置
-│   └── 工作流.md              # 工作流说明
-└── 📖 README.md              # 项目文档
-```
 
 ## 🎮 使用指南
 
@@ -192,55 +171,15 @@ python image_filter_main.py
 # 1. 设置合适的并发数 (10-20)
 # 2. 确保网络稳定
 # 3. 监控API额度使用情况
-# 4. 定期检查日志文件
+# 4. 保障上行带宽，小水管服务器并发别拉太高
 ```
-
-## 🔧 开发与构建
-
-### 本地开发
-```bash
-# 安装开发依赖
-pip install -r requirements.txt
-pip install flake8 pytest
-
-# 代码检查
-flake8 . --max-line-length=127
-
-# 运行测试
-python -m pytest tests/
-```
-
-### 构建可执行文件
-```bash
-# Windows
-build.bat
-
-# 或使用Python脚本
-python build_exe.py
-```
-
-### GitHub Actions
-项目配置了自动化CI/CD流程：
-- **构建**: 每次推送自动构建所有平台
-- **测试**: 代码质量检查和基础测试
-- **发布**: 标签驱动的自动发布流程
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请遵循以下步骤：
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
 
 ## ⚠️ 注意事项
 
 ### API使用
 - 确保API密钥有足够的额度
 - 遵守智谱AI的使用条款和限制
-- 建议设置合理的并发数以避免触发限流
+- 建议设置合理的并发数以避免触发限流,v0级别即支持30并发
 
 ### 内容审查标准
 - 本系统基于16岁及以上青少年标准
@@ -262,11 +201,6 @@ python build_exe.py
 - [PyInstaller](https://www.pyinstaller.org/) - 跨平台打包工具
 - [Pillow](https://pillow.readthedocs.io/) - Python图像处理库
 
-## 📞 支持与反馈
-
-- 🐛 [报告Bug](https://github.com/guguniu/PicExam/issues)
-- 💡 [功能建议](https://github.com/guguniu/PicExam/discussions)
-- 📧 邮件支持: [your-email@example.com]
 
 ## 🔗 相关链接
 
