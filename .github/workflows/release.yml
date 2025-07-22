@@ -5,8 +5,13 @@ on:
     tags:
       - 'v*'  # 当推送以 v 开头的标签时触发，如 v1.0.0
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
 jobs:
-  build-and-release:
+  build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -139,7 +144,33 @@ jobs:
         fi
       shell: bash
 
-    - name: Create Release and Upload Assets
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.asset_name }}
+        path: ./${{ matrix.asset_name }}
+        retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -la ./artifacts/
+
+    - name: Create Release and Upload All Assets
       uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,24 +180,40 @@ jobs:
         body: |
           ## 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
 
-          ### 新功能
-          - 自动构建的多平台可执行文件
-          - 支持 Windows、Linux、macOS 三大平台
+          ### ✨ 新功能
+          - 基于智谱AI GLM-4.1V的图片内容审查
+          - 支持最高30个并发任务同时进行
+          - 自动分类不适宜内容到指定文件夹
+          - 智能文件名检查功能
 
-          ### 下载说明
+          ### 🚀 性能优化
+          - 异步IO处理，提升处理速度
+          - 智能重试机制，确保稳定性
+          - 内存优化，支持大批量处理
+
+          ### 📦 下载说明
           - **Windows用户**: 下载 `PicExam-Windows.zip`
           - **Linux用户**: 下载 `PicExam-Linux.zip`
           - **macOS用户**: 下载 `PicExam-macOS.zip`
 
-          ### 使用方法
+          ### 🔧 使用方法
           1. 下载对应平台的压缩包
           2. 解压到任意目录
           3. 运行可执行文件
-          4. 根据提示配置和使用
+          4. 配置智谱AI密钥 ([获取地址](https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys))
+          5. 开始批量处理图片
+
+          ### 📋 系统要求
+          - **Windows**: Windows 10 或更高版本
+          - **Linux**: Ubuntu 18.04+ 或其他现代发行版
+          - **macOS**: macOS 10.15+ (Catalina)
+          - **网络**: 稳定的互联网连接
 
           ---
 
           **完整更新日志请查看提交历史**
-        files: ./${{ matrix.asset_name }}
+        files: ./artifacts/**/*.zip
         draft: false
         prerelease: false
+        make_latest: true
+        fail_on_unmatched_files: false
