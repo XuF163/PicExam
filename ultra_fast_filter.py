@@ -22,6 +22,98 @@ from queue import Queue
 import signal
 import sys
 
+class SimpleProgressBar:
+    """最简单的单行进度条"""
+    
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.is_showing = False
+        # 保存最后的进度状态，用于日志输出后恢复
+        self.last_current = 0
+        self.last_total = 0
+        self.last_stats_info = ""
+        self.last_prefix = "进度"
+        
+    def update(self, current, total, stats_info="", prefix="进度"):
+        """更新进度条 - 使用单行覆盖更新"""
+        with self.lock:
+            # 保存状态
+            self.last_current = current
+            self.last_total = total
+            self.last_stats_info = stats_info
+            self.last_prefix = prefix
+            
+            if total == 0:
+                percentage = 0
+            else:
+                percentage = current / total
+            
+            # 使用ASCII字符避免编码问题
+            bar_width = 40
+            filled_length = int(bar_width * percentage)
+            bar = '#' * filled_length + '-' * (bar_width - filled_length)
+            percent = percentage * 100
+            
+            # 构建完整的进度行
+            if stats_info:
+                progress_text = f'\r{prefix}: [{bar}] {percent:.1f}% ({current}/{total}) | {stats_info}'
+            else:
+                progress_text = f'\r{prefix}: [{bar}] {percent:.1f}% ({current}/{total})'
+            
+            # 限制行长度，避免换行
+            max_width = 120
+            if len(progress_text) > max_width:
+                progress_text = progress_text[:max_width-3] + '...'
+            
+            sys.stdout.write(progress_text)
+            sys.stdout.flush()
+            self.is_showing = True
+    
+    def clear(self):
+        """清除进度条"""
+        with self.lock:
+            if self.is_showing:
+                sys.stdout.write('\r' + ' ' * 120 + '\r')
+                sys.stdout.flush()
+                self.is_showing = False
+    
+    def restore_if_needed(self):
+        """如果进度条被清除，恢复最后的状态"""
+        with self.lock:
+            if not self.is_showing and self.last_total > 0:
+                # 恢复上次的进度显示
+                self.update(self.last_current, self.last_total, self.last_stats_info, self.last_prefix)
+    
+    def finish(self, message="完成"):
+        """完成并显示消息"""
+        with self.lock:
+            if self.is_showing:
+                sys.stdout.write('\r' + ' ' * 120 + '\r')
+                print(f"✓ {message}")
+                self.is_showing = False
+                # 清除保存的状态
+                self.last_current = 0
+                self.last_total = 0
+                self.last_stats_info = ""
+
+# 全局进度条
+progress_bar = SimpleProgressBar()
+
+class SafeLogHandler(logging.Handler):
+    """安全的日志处理器"""
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            # 清除进度条，输出日志，然后短暂延迟后恢复进度条
+            progress_bar.clear()
+            print(msg)
+            sys.stdout.flush()  # 确保日志立即输出
+            # 短暂延迟后恢复进度条，确保日志输出完成
+            threading.Timer(0.05, progress_bar.restore_if_needed).start()
+        except:
+            pass
+
 # 配置
 API_KEY = "d7ee358d075849bfb7833d37b2503ad8.Lii3soccyVMgKorS"
 
@@ -45,13 +137,24 @@ class UltraFastImageFilter:
         
     def setup_logging(self):
         """设置日志"""
+        # 清除默认处理器
+        logging.getLogger().handlers.clear()
+        
+        # 创建日志格式器
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s')
+        
+        # 添加安全日志处理器
+        safe_handler = SafeLogHandler()
+        safe_handler.setFormatter(formatter)
+        
+        # 添加文件处理器
+        file_handler = logging.FileHandler('ultra_fast_filter.log', encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        
+        # 配置日志
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s',
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler('ultra_fast_filter.log', encoding='utf-8')
-            ]
+            handlers=[safe_handler, file_handler]
         )
         self.logger = logging.getLogger(__name__)
 
@@ -401,24 +504,31 @@ class UltraFastImageFilter:
     def monitor_progress(self, start_time: float):
         """监控处理进度"""
         while True:
-            time.sleep(10)  # 每10秒更新一次进度
+            time.sleep(2)  # 每2秒更新一次
             
             with self.stats_lock:
                 processed = self.stats['processed']
                 total = self.stats['total']
+                moved = self.stats['moved']
+                approved = self.stats['approved']
+                errors = self.stats['errors']
             
             if processed >= total:
+                progress_bar.finish("审查完成")
                 break
                 
             elapsed = time.time() - start_time
             if processed > 0:
                 avg_speed = processed / elapsed
                 eta = (total - processed) / avg_speed if avg_speed > 0 else 0
-                print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%) | "
-                      f"速度: {avg_speed:.2f}张/秒 | "
-                      f"预计剩余: {eta/60:.1f}分钟")
+                
+                # 构建统计信息 - 保持简洁
+                stats_info = f"通过:{approved} 移动:{moved} 错误:{errors} 速度:{avg_speed:.1f}/秒 剩余:{eta/60:.1f}分"
+                
+                # 更新进度条
+                progress_bar.update(processed, total, stats_info, "审查进度")
             else:
-                print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%)")
+                progress_bar.update(processed, total, "准备中...", "审查进度")
 
 def main():
     """主函数"""

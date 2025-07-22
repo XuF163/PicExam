@@ -21,6 +21,99 @@ from zhipuai import ZhipuAI
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+class SimpleProgressBar:
+    """最简单的单行进度条"""
+    
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.is_showing = False
+        # 保存最后的进度状态，用于日志输出后恢复
+        self.last_current = 0
+        self.last_total = 0
+        self.last_stats_info = ""
+        self.last_prefix = "进度"
+        
+    def update(self, current, total, stats_info="", prefix="进度"):
+        """更新进度条 - 使用单行覆盖更新"""
+        with self.lock:
+            # 保存状态
+            self.last_current = current
+            self.last_total = total
+            self.last_stats_info = stats_info
+            self.last_prefix = prefix
+            
+            if total == 0:
+                percentage = 0
+            else:
+                percentage = current / total
+            
+            # 使用ASCII字符避免编码问题
+            bar_width = 40
+            filled_length = int(bar_width * percentage)
+            bar = '#' * filled_length + '-' * (bar_width - filled_length)
+            percent = percentage * 100
+            
+            # 构建完整的进度行
+            if stats_info:
+                progress_text = f'\r{prefix}: [{bar}] {percent:.1f}% ({current}/{total}) | {stats_info}'
+            else:
+                progress_text = f'\r{prefix}: [{bar}] {percent:.1f}% ({current}/{total})'
+            
+            # 限制行长度，避免换行
+            max_width = 120
+            if len(progress_text) > max_width:
+                progress_text = progress_text[:max_width-3] + '...'
+            
+            sys.stdout.write(progress_text)
+            sys.stdout.flush()
+            self.is_showing = True
+    
+    def clear(self):
+        """清除进度条"""
+        with self.lock:
+            if self.is_showing:
+                # 清除当前行
+                sys.stdout.write('\r' + ' ' * 120 + '\r')
+                sys.stdout.flush()
+                self.is_showing = False
+    
+    def restore_if_needed(self):
+        """如果进度条被清除，恢复最后的状态"""
+        with self.lock:
+            if not self.is_showing and self.last_total > 0:
+                # 恢复上次的进度显示
+                self.update(self.last_current, self.last_total, self.last_stats_info, self.last_prefix)
+    
+    def finish(self, message="完成"):
+        """完成并显示消息"""
+        with self.lock:
+            if self.is_showing:
+                sys.stdout.write('\r' + ' ' * 120 + '\r')  # 清除
+                print(f"✓ {message}")
+                self.is_showing = False
+                # 清除保存的状态
+                self.last_current = 0
+                self.last_total = 0
+                self.last_stats_info = ""
+
+# 全局进度条
+progress_bar = SimpleProgressBar()
+
+class SafeLogHandler(logging.Handler):
+    """安全的日志处理器 - 避免与进度条冲突"""
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            # 清除进度条，输出日志，然后短暂延迟后恢复进度条
+            progress_bar.clear()
+            print(msg)
+            sys.stdout.flush()  # 确保日志立即输出
+            # 短暂延迟后恢复进度条，确保日志输出完成
+            threading.Timer(0.05, progress_bar.restore_if_needed).start()
+        except:
+            pass
+
 def clear_screen():
     """清屏"""
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -32,6 +125,78 @@ def print_banner():
     print("   超高速多线程AI审查 + 智能标记管理")
     print("=" * 70)
     print()
+
+class BottomProgressBar:
+    """底部固定进度条"""
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.last_line = ""
+        self.is_active = False
+
+    def start(self):
+        """启动进度条"""
+        self.is_active = True
+
+    def stop(self):
+        """停止进度条"""
+        self.is_active = False
+        with self.lock:
+            # 清除进度条
+            if self.last_line:
+                print("\r" + " " * len(self.last_line) + "\r", end="", flush=True)
+                self.last_line = ""
+                print()  # 换行
+
+    def update(self, processed, total, speed=None, eta=None):
+        """更新进度条"""
+        if not self.is_active:
+            return
+
+        with self.lock:
+            # 计算进度百分比
+            percentage = (processed / total * 100) if total > 0 else 0
+
+            # 创建进度条
+            bar_width = 40
+            filled = int(bar_width * processed / total) if total > 0 else 0
+            bar = "█" * filled + "░" * (bar_width - filled)
+
+            # 构建进度信息
+            progress_info = f"审查进度: [{bar}] {percentage:.1f}% ({processed}/{total})"
+
+            if speed is not None:
+                progress_info += f" | 速度: {speed:.2f}张/秒"
+            if eta is not None:
+                progress_info += f" | 剩余: {eta:.1f}分钟"
+
+            # 清除上一行并打印新的进度条
+            if self.last_line:
+                print("\r" + " " * len(self.last_line), end="", flush=True)
+
+            print(f"\r{progress_info}", end="", flush=True)
+            self.last_line = progress_info
+
+class SafeLogHandler(logging.StreamHandler):
+    """与进度条兼容的日志处理器"""
+    def __init__(self, progress_bar=None):
+        super().__init__()
+        self.progress_bar = progress_bar
+
+    def emit(self, record):
+        if self.progress_bar and self.progress_bar.is_active:
+            with self.progress_bar.lock:
+                # 清除进度条
+                if self.progress_bar.last_line:
+                    print("\r" + " " * len(self.progress_bar.last_line) + "\r", end="")
+
+                # 输出日志
+                super().emit(record)
+
+                # 重新显示进度条
+                if self.progress_bar.last_line:
+                    print(f"\r{self.progress_bar.last_line}", end="", flush=True)
+        else:
+            super().emit(record)
 
 def load_config():
     """加载配置文件"""
@@ -155,17 +320,29 @@ class UltraFastImageFilter:
         self.stats_lock = threading.Lock()
         self.processed_files = set()
         self.processed_lock = threading.Lock()
+        self.progress_bar = BottomProgressBar()
         self.setup_logging()
 
     def setup_logging(self):
         """设置日志"""
+        # 清除默认处理器
+        logging.getLogger().handlers.clear()
+
+        # 创建日志格式器
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s')
+
+        # 添加与进度条兼容的控制台处理器
+        safe_handler = SafeLogHandler(self.progress_bar)
+        safe_handler.setFormatter(formatter)
+
+        # 添加文件处理器
+        file_handler = logging.FileHandler('image_filter.log', encoding='utf-8')
+        file_handler.setFormatter(formatter)
+
+        # 配置日志
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s',
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler('image_filter.log', encoding='utf-8')
-            ]
+            handlers=[safe_handler, file_handler]
         )
         self.logger = logging.getLogger(__name__)
 
@@ -455,25 +632,26 @@ class UltraFastImageFilter:
 
     def monitor_progress(self, start_time: float):
         """监控处理进度"""
+        self.progress_bar.start()
+
         while True:
-            time.sleep(10)
-            
+            time.sleep(2)  # 每2秒更新一次
+
             with self.stats_lock:
                 processed = self.stats['processed']
                 total = self.stats['total']
-            
+
             if processed >= total:
+                self.progress_bar.stop()
                 break
-                
+
             elapsed = time.time() - start_time
             if processed > 0:
                 avg_speed = processed / elapsed
                 eta = (total - processed) / avg_speed if avg_speed > 0 else 0
-                print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%) | "
-                      f"速度: {avg_speed:.2f}张/秒 | "
-                      f"预计剩余: {eta/60:.1f}分钟")
+                self.progress_bar.update(processed, total, avg_speed, eta/60)
             else:
-                print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%)")
+                self.progress_bar.update(processed, total)
 
     def run(self):
         """运行过滤器"""
@@ -515,8 +693,11 @@ class UltraFastImageFilter:
                     self.logger.error(f"任务执行失败: {image_path}, 错误: {e}")
         
         elapsed_time = time.time() - start_time
-        
-        print(f"\n📊 处理完成:")
+
+        # 确保进度条停止
+        self.progress_bar.stop()
+
+        print("📊 处理完成:")
         print(f"   总共: {self.stats['total']} 张")
         print(f"   处理: {self.stats['processed']} 张")
         print(f"   通过: {self.stats['approved']} 张")
@@ -583,6 +764,7 @@ class ApprovalTagRemover:
         total = len(images)
         
         print(f"找到 {total} 张图片，开始处理...")
+        print()  # 为进度条留出空间
         
         for i, image_path in enumerate(images, 1):
             self.processed_count += 1
@@ -607,10 +789,12 @@ class ApprovalTagRemover:
             else:
                 self.skipped_count += 1
 
-            if i % 100 == 0:
-                print(f"进度: {i}/{total} ({i/total*100:.1f}%)")
+            # 更新进度条
+            progress_bar.update(i, total, prefix="清除标记")
 
-        print("\n📊 清除完成:")
+        progress_bar.finish("标记清除完成")
+        print("")
+        print("📊 清除完成:")
         print(f"   总共处理: {self.processed_count}")
         print(f"   成功重命名: {self.renamed_count}")
         print(f"   跳过: {self.skipped_count}")

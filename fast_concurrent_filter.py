@@ -21,6 +21,72 @@ import tempfile
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Set
 import threading
+import sys
+
+def get_terminal_height():
+    """获取终端高度"""
+    try:
+        import shutil
+        return shutil.get_terminal_size().lines
+    except:
+        return 25  # 默认高度
+
+def draw_progress_bar(current, total, bar_length=50, prefix="进度"):
+    """绘制进度条"""
+    if total == 0:
+        percentage = 0
+    else:
+        percentage = current / total
+    
+    filled_length = int(bar_length * percentage)
+    # 使用ASCII字符替代Unicode字符，避免编码问题
+    bar = '#' * filled_length + '-' * (bar_length - filled_length)
+    percent = percentage * 100
+    
+    # 移动到行首并清除当前行
+    try:
+        sys.stdout.write(f'\r{prefix}: [{bar}] {percent:.1f}% ({current}/{total})')
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        # 如果仍有编码问题，使用简化版本
+        sys.stdout.write(f'\r{prefix}: {percent:.1f}% ({current}/{total})')
+        sys.stdout.flush()
+
+def draw_fixed_bottom_progress(current, total, stats_info="", prefix="审查进度"):
+    """绘制固定在底部的进度条"""
+    if total == 0:
+        percentage = 0
+    else:
+        percentage = current / total
+    
+    filled_length = int(40 * percentage)  # 缩短进度条长度
+    bar = '#' * filled_length + '-' * (40 - filled_length)
+    percent = percentage * 100
+    
+    try:
+        # 保存当前光标位置
+        sys.stdout.write('\033[s')
+        
+        # 移动到屏幕底部
+        terminal_height = get_terminal_height()
+        sys.stdout.write(f'\033[{terminal_height};1H')
+        
+        # 清除底部两行
+        sys.stdout.write('\033[K')  # 清除当前行
+        if stats_info:
+            sys.stdout.write(stats_info)
+            sys.stdout.write('\n\033[K')  # 换行并清除下一行
+        
+        # 显示进度条
+        progress_line = f'{prefix}: [{bar}] {percent:.1f}% ({current}/{total})'
+        sys.stdout.write(progress_line)
+        
+        # 恢复光标位置
+        sys.stdout.write('\033[u')
+        sys.stdout.flush()
+    except:
+        # 如果终端不支持ANSI转义序列，回退到简单版本
+        draw_progress_bar(current, total, prefix=prefix)
 
 # 配置
 API_KEY = "d7ee358d075849bfb7833d37b2503ad8.Lii3soccyVMgKorS"
@@ -461,20 +527,44 @@ class FastConcurrentImageFilter:
         """监控处理进度"""
         try:
             while True:
-                await asyncio.sleep(10)  # 每10秒更新一次进度
+                await asyncio.sleep(2)  # 更频繁地更新进度条
 
                 with self.lock:
                     processed = self.stats.processed
+                    moved = self.stats.moved
+                    approved = self.stats.approved
+                    errors = self.stats.errors
+                
+                if processed >= total:
+                    # 完成时显示完整进度条
+                    draw_fixed_bottom_progress(total, total, 
+                                             stats_info="处理完成！",
+                                             prefix="✓ 完成")
+                    print()  # 换行
+                    break
 
                 elapsed = time.time() - start_time
                 if processed > 0:
                     avg_speed = processed / elapsed
                     eta = (total - processed) / avg_speed if avg_speed > 0 else 0
-                    print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%) | "
-                          f"速度: {avg_speed:.2f}张/秒 | "
-                          f"预计剩余: {eta/60:.1f}分钟")
+                    
+                    # 构建统计信息
+                    stats_line = (f"处理中: {processed}/{total} | "
+                                 f"通过: {approved} | "
+                                 f"移动: {moved} | "
+                                 f"错误: {errors} | "
+                                 f"速度: {avg_speed:.1f}/秒 | "
+                                 f"剩余: {eta/60:.1f}分钟")
+                    
+                    # 显示固定底部进度条
+                    draw_fixed_bottom_progress(processed, total, 
+                                             stats_info=stats_line,
+                                             prefix="审查进度")
                 else:
-                    print(f"📈 进度: {processed}/{total} ({processed/total*100:.1f}%)")
+                    draw_fixed_bottom_progress(processed, total, 
+                                             stats_info="准备开始处理...",
+                                             prefix="审查进度")
+                    
         except asyncio.CancelledError:
             pass
 
