@@ -96,11 +96,11 @@ exe = EXE(
     with open('gemini_version.spec', 'w', encoding='utf-8') as f:
         f.write(spec_content)
     
-    print("✅ 创建最小化spec文件成功")
+    print("[OK] 创建最小化spec文件成功")
 
 def build_exe():
     """使用spec文件构建exe"""
-    print("🚀 开始构建 Gemini 版本...")
+    print("[INFO] 开始构建 Gemini 版本...")
     
     try:
         # 清理旧文件
@@ -119,40 +119,40 @@ def build_exe():
         # 检查结果
         exe_path = Path('dist/图片内容过滤系统_Gemini版.exe')
         if exe_path.exists():
-            print(f"✅ 构建成功！")
-            print(f"📁 可执行文件位置: {exe_path.absolute()}")
+            print(f"[OK] 构建成功！")
+            print(f"[INFO] 可执行文件位置: {exe_path.absolute()}")
             
             # 复制到根目录
             shutil.copy(exe_path, '.')
-            print(f"📋 已复制到: {Path('.').absolute() / '图片内容过滤系统_Gemini版.exe'}")
+            print(f"[INFO] 已复制到: {Path('.').absolute() / '图片内容过滤系统_Gemini版.exe'}")
         else:
-            print("❌ 未找到生成的exe文件")
+            print("[ERROR] 未找到生成的exe文件")
             
     except subprocess.CalledProcessError as e:
-        print(f"❌ 构建失败: {e}")
+        print(f"[ERROR] 构建失败: {e}")
     except Exception as e:
-        print(f"❌ 构建过程出错: {e}")
+        print(f"[ERROR] 构建过程出错: {e}")
 
 def main():
     print("=" * 60)
-    print("🎯 图片内容过滤系统 - Gemini版本构建工具")
+    print("图片内容过滤系统 - Gemini版本构建工具")
     print("=" * 60)
     print()
     
     # 检查PyInstaller
     try:
         import PyInstaller
-        print("✅ PyInstaller 可用")
+        print("[OK] PyInstaller 可用")
     except ImportError:
-        print("❌ PyInstaller 未安装")
+        print("[ERROR] PyInstaller 未安装")
         print("正在安装...")
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"])
-        print("✅ PyInstaller 安装完成")
+        print("[OK] PyInstaller 安装完成")
     
     build_exe()
     
-    print("\n🎉 构建过程完成！")
-    print("\n📝 使用说明:")
+    print("\n[INFO] 构建过程完成！")
+    print("\n[INFO] 使用说明:")
     print("1. 运行生成的exe文件")
     print("2. 在配置菜单中设置 Google Gemini API 密钥")
     print("3. 享受新的Gemini AI视觉模型功能！")

@@ -53,12 +53,15 @@ jobs:
     - name: Build executable (Windows)
       if: matrix.platform == 'windows'
       run: |
+        chcp 65001
+        set PYTHONIOENCODING=utf-8
         python build_openai_version.py
       shell: cmd
 
     - name: Build executable (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
+        export PYTHONIOENCODING=utf-8
         python build_openai_version.py
 
     - name: Prepare release files
