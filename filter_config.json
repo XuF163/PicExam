@@ -1,8 +1,12 @@
 {
-    "max_concurrent": 10,
-    "api_delay": 0.1,
-    "max_retries": 3,
-    "timeout": 60,
-    "target_folder": "@色图",
-    "log_level": "INFO"
+  "api_type": "gemini",
+  "api_base_url": "https://??/v1/",
+  "api_key": "",
+  "model_name": "gemini-2.5-pro",
+  "max_concurrent": 1,
+  "timeout": 60,
+  "target_folder": "@色图",
+  "api_delay": 0.1,
+  "max_retries": 3,
+  "log_level": "INFO"
 }

@@ -1,0 +1,119 @@
+{
+  "examples": {
+    "gemini_flash_recommended": {
+      "api_type": "gemini",
+      "api_base_url": "",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-1.5-flash",
+      "max_concurrent": 15,
+      "api_delay": 0.1,
+      "max_retries": 3,
+      "timeout": 60,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "推荐配置：Gemini 1.5 Flash，快速且经济，使用官方服务器"
+    },
+    "gemini_pro_high_quality": {
+      "api_type": "gemini",
+      "api_base_url": "",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-1.5-pro",
+      "max_concurrent": 10,
+      "api_delay": 0.2,
+      "max_retries": 3,
+      "timeout": 90,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "高质量配置：Gemini 1.5 Pro，精度更高，使用官方服务器"
+    },
+    "gemini_with_proxy": {
+      "api_type": "gemini",
+      "api_base_url": "https://your-proxy.com/v1beta",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-1.5-flash",
+      "max_concurrent": 12,
+      "api_delay": 0.15,
+      "max_retries": 3,
+      "timeout": 75,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "代理配置：通过代理服务器访问Gemini API"
+    },
+    "gemini_pro_vision_legacy": {
+      "api_type": "gemini",
+      "api_base_url": "",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-pro-vision",
+      "max_concurrent": 8,
+      "api_delay": 0.3,
+      "max_retries": 3,
+      "timeout": 80,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "传统配置：Gemini Pro Vision，稳定可靠"
+    },
+    "gemini_conservative": {
+      "api_type": "gemini",
+      "api_base_url": "",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-1.5-flash",
+      "max_concurrent": 5,
+      "api_delay": 0.5,
+      "max_retries": 5,
+      "timeout": 120,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "保守配置：低并发，高重试，适合网络不稳定环境"
+    },
+    "gemini_aggressive": {
+      "api_type": "gemini",
+      "api_base_url": "",
+      "api_key": "your-gemini-api-key-here",
+      "model_name": "gemini-1.5-flash",
+      "max_concurrent": 30,
+      "api_delay": 0.05,
+      "max_retries": 2,
+      "timeout": 45,
+      "target_folder": "@色图",
+      "log_level": "INFO",
+      "description": "激进配置：高并发，低延迟，适合高速网络环境"
+    }
+  },
+  "setup_guide": {
+    "step1": "访问 https://aistudio.google.com/app/apikey 获取 Gemini API 密钥",
+    "step2": "将 API 密钥填入配置文件的 api_key 字段",
+    "step3": "配置 api_base_url：留空使用官方服务器，或填入代理地址",
+    "step4": "根据需求选择合适的模型：flash（快速）或 pro（高精度）",
+    "step5": "根据网络环境调整并发数和延迟参数",
+    "step6": "运行程序并开始图片审查"
+  },
+  "proxy_setup": {
+    "note": "如果需要通过代理访问Gemini API",
+    "api_base_url_examples": [
+      "https://your-proxy.com/v1beta",
+      "https://gemini-proxy.example.com/api",
+      "http://localhost:8080/gemini"
+    ],
+    "important": "确保代理服务器支持Gemini API格式并正确转发请求"
+  },
+  "model_comparison": {
+    "gemini-1.5-flash": {
+      "speed": "极快",
+      "cost": "低",
+      "accuracy": "高",
+      "recommended_for": "大批量处理，日常使用"
+    },
+    "gemini-1.5-pro": {
+      "speed": "快",
+      "cost": "中等",
+      "accuracy": "极高",
+      "recommended_for": "高精度要求，重要内容审查"
+    },
+    "gemini-pro-vision": {
+      "speed": "中等",
+      "cost": "中等",
+      "accuracy": "高",
+      "recommended_for": "稳定性要求高的场景"
+    }
+  }
+}

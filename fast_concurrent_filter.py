@@ -15,7 +15,8 @@ import time
 import hashlib
 import asyncio
 from pathlib import Path
-from zhipuai import ZhipuAI
+import google.generativeai as genai
+from openai import OpenAI
 from PIL import Image
 import tempfile
 from dataclasses import dataclass
@@ -88,8 +89,7 @@ def draw_fixed_bottom_progress(current, total, stats_info="", prefix="审查进�
         # 如果终端不支持ANSI转义序列，回退到简单版本
         draw_progress_bar(current, total, prefix=prefix)
 
-# 配置
-API_KEY = "d7ee358d075849bfb7833d37b2503ad8.Lii3soccyVMgKorS"
+# 注意：API配置现在从配置文件读取
 
 @dataclass
 class FilterConfig:
@@ -115,7 +115,7 @@ class ProcessingStats:
 class FastConcurrentImageFilter:
     def __init__(self, config: FilterConfig = None):
         self.config = config or self.load_config()
-        self.client = ZhipuAI(api_key=API_KEY)
+        self.client = None  # 将在load_config后初始化
         self.stats = ProcessingStats()
         self.moved_images = []
         self.processed_files: Set[str] = set()
@@ -139,6 +139,26 @@ class FastConcurrentImageFilter:
         try:
             with open('filter_config.json', 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
+            
+            # 检查是否使用代理服务器
+            self.use_proxy = config_data.get('use_proxy', False)
+            self.base_url = config_data.get('base_url', '')
+            self.api_key = config_data.get('api_key', '')
+            self.model_name = config_data.get('model_name', 'gemini-2.5-pro')
+            
+            if self.use_proxy and self.base_url:
+                print(f"🌐 使用代理服务器: {self.base_url}")
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url
+                )
+                print(f"✅ API 配置成功，模型: {self.model_name}")
+            else:
+                print("🔑 使用官方 Gemini API")
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel(self.model_name)
+                print(f"✅ API 配置成功，模型: {self.model_name}")
+            
             return FilterConfig(
                 max_concurrent=config_data.get('max_concurrent', 30),
                 api_delay=config_data.get('api_delay', 1.5),
@@ -148,21 +168,17 @@ class FastConcurrentImageFilter:
                 log_level=config_data.get('log_level', 'INFO')
             )
         except Exception as e:
-            self.logger.warning(f"加载配置失败，使用默认配置: {e}")
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"加载配置失败，使用默认配置: {e}")
+            # 使用默认配置
+            self.use_proxy = False
+            genai.configure(api_key='')
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
             return FilterConfig()
 
     def check_filename_for_adult_content(self, filename: str) -> bool:
-        """检查文件名是否包含成人内容标识符"""
-        adult_indicators = [
-            'r18', 'r-18', 'nsfw', 'gu18', 'g18', 'adult', 'xxx', 'sex', 'porn',
-            '色图', '涩图', '福利', '本子', 'hentai', 'ecchi', '工口', 'ero',
-            '18+', '成人', '限制级', 'restricted', 'mature', '不可描述'
-        ]
-        
-        filename_lower = filename.lower()
-        for indicator in adult_indicators:
-            if indicator in filename_lower:
-                return True
+        """检查文件名是否包含成人内容标识符 - 已禁用"""
+        # 根据用户要求，不再依据文件名判断
         return False
 
     def get_all_images(self) -> List[str]:
@@ -184,96 +200,77 @@ class FastConcurrentImageFilter:
         return images
 
     def validate_and_resize_image(self, image_path: str) -> str:
-        """验证并调整图片大小"""
+        """验证并自适应压缩图片"""
         try:
             with Image.open(image_path) as img:
-                # 如果是WEBP，转换为JPEG
-                if image_path.lower().endswith('.webp'):
-                    if img.mode in ('RGBA', 'LA', 'P'):
-                        img = img.convert('RGB')
-                    
-                    temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
-                    os.close(temp_fd)
-                    img.save(temp_path, 'JPEG', quality=85)
-                    return temp_path
+                # 转换为RGB模式
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
                 
-                # 检查文件大小，如果太大则压缩
-                file_size = os.path.getsize(image_path) / (1024 * 1024)
-                if file_size > 3:
-                    if img.mode in ('RGBA', 'LA', 'P'):
-                        img = img.convert('RGB')
-                    
-                    # 压缩尺寸
-                    max_size = 1024
-                    ratio = min(max_size / img.width, max_size / img.height)
-                    if ratio < 1:
-                        new_width = int(img.width * ratio)
-                        new_height = int(img.height * ratio)
-                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                    
-                    temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
-                    os.close(temp_fd)
-                    img.save(temp_path, 'JPEG', quality=85)
-                    return temp_path
+                # 自适应压缩策略
+                # 1. 先尝试压缩尺寸
+                max_dimension = 1024  # 最大边长
+                if img.width > max_dimension or img.height > max_dimension:
+                    ratio = min(max_dimension / img.width, max_dimension / img.height)
+                    new_width = int(img.width * ratio)
+                    new_height = int(img.height * ratio)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
                 
-                return image_path
+                # 2. 保存为JPEG并尝试不同质量等级
+                temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
+                os.close(temp_fd)
+                
+                # 尝试不同的压缩质量，确保文件大小合适
+                for quality in [85, 70, 55, 40]:
+                    img.save(temp_path, 'JPEG', quality=quality, optimize=True)
+                    
+                    # 检查压缩后的文件大小
+                    with open(temp_path, 'rb') as f:
+                        data = f.read()
+                        base64_size_mb = len(base64.b64encode(data)) / (1024 * 1024)
+                    
+                    # 如果小于8MB，使用这个质量
+                    if base64_size_mb < 8:
+                        return temp_path
+                
+                # 如果仍然太大，进一步缩小尺寸
+                max_dimension = 512
+                ratio = min(max_dimension / img.width, max_dimension / img.height)
+                new_width = int(img.width * ratio)
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                img.save(temp_path, 'JPEG', quality=40, optimize=True)
+                
+                return temp_path
                 
         except Exception as e:
             self.logger.warning(f"图片处理失败: {e}")
             return image_path
 
-    async def check_image_safety(self, image_path: str, process_id: str):
-        """检查图片安全性"""
-        temp_path = None
+    async def retry_with_backoff(self, image_path: str, process_id: str, temp_path: str = None, img_base64: str = None):
+        """无限重试机制 - 确保100%审查覆盖率"""
+        attempt = 0
+        max_backoff_delay = 300  # 最大退避延迟5分钟
         
-        try:
-            # 1. 文件名检查
-            if self.check_filename_for_adult_content(image_path):
-                self.logger.warning(f"[{process_id}] 文件名包含成人内容标识符: {image_path}")
-                return {
-                    "suitable_for_teens": False,
-                    "reason": "文件名包含成人内容标识符，不适合16岁及以上青少年",
-                    "confidence": 0.9
-                }, temp_path
-
-            # 2. 验证图片格式并在需要时压缩
-            processed_path = self.validate_and_resize_image(image_path)
-            if processed_path != image_path:
-                temp_path = processed_path
-
-            # 3. 读取图片并转换为Base64
-            with open(processed_path, 'rb') as img_file:
-                img_data = img_file.read()
-
-            img_base64 = base64.b64encode(img_data).decode('utf-8')
-
-            # 检查文件大小
-            base64_size_mb = len(img_base64) / (1024 * 1024)
-            if base64_size_mb > 10:
-                return {
-                    "suitable_for_teens": True,
-                    "reason": "图片过大，跳过检查",
-                    "confidence": 0.0
-                }, temp_path
-
-            # 4. 调用AI API（带重试机制）
-            for attempt in range(self.config.max_retries):
-                try:
-                    response = self.client.chat.completions.create(
-                        model="glm-4.1v-thinking-flashx",
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{img_base64}"
-                                        }
-                                    },
-                                    {
-                                        "type": "text",
-                                        "text": """
+        while True:
+            attempt += 1
+            try:
+                # 指数退避延迟，但有最大限制
+                backoff_delay = min(max_backoff_delay, self.config.api_delay * (1.5 ** min(attempt-1, 10)))
+                self.logger.info(f"[{process_id}] 第 {attempt} 次重试，等待 {backoff_delay:.1f}秒")
+                await asyncio.sleep(backoff_delay)
+                
+                # 如果没有img_base64，重新处理图片
+                if img_base64 is None:
+                    processed_path = self.validate_and_resize_image(image_path)
+                    if processed_path != image_path:
+                        temp_path = processed_path
+                    
+                    with open(processed_path, 'rb') as img_file:
+                        img_data = img_file.read()
+                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                
+                prompt = """
 请仔细审查这张图片是否适合16岁及以上青少年查看。
 
 重点检查：
@@ -292,6 +289,21 @@ class FastConcurrentImageFilter:
 
 如果有任何疑虑，请判定为不适合。
 """
+
+                if self.use_proxy and hasattr(self, 'client'):
+                    # 使用代理服务器 (OpenAI兼容格式)
+                    response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{img_base64}"
+                                        }
                                     }
                                 ]
                             }
@@ -299,55 +311,119 @@ class FastConcurrentImageFilter:
                         timeout=self.config.timeout
                     )
                     
-                    content = response.choices[0].message.content
-                    
-                    # 解析JSON结果
-                    try:
-                        if '{' in content and '}' in content:
-                            start = content.find('{')
-                            end = content.rfind('}') + 1
-                            json_str = content[start:end]
-                            result = json.loads(json_str)
-                            return result, temp_path
-                        else:
-                            # 关键词判断
-                            if any(word in content.lower() for word in ['不适合', 'false', '不建议']):
-                                return {"suitable_for_teens": False, "reason": "AI判断不适合", "confidence": 0.8}, temp_path
-                            else:
-                                return {"suitable_for_teens": True, "reason": "AI判断适合", "confidence": 0.8}, temp_path
-                    except:
-                        return {"suitable_for_teens": True, "reason": "解析失败，默认通过", "confidence": 0.5}, temp_path
-                    
-                except Exception as e:
-                    error_str = str(e)
-                    if "1301" in error_str or "contentFilter" in error_str or "不安全或敏感内容" in error_str:
-                        self.logger.info(f"[{process_id}] AI检测到不适合内容: {image_path}")
-                        with self.lock:
-                            self.stats.skipped_ai_reject += 1
-                        return {
-                            "suitable_for_teens": False,
-                            "reason": "AI检测到不适合16岁及以上青少年的内容",
-                            "confidence": 1.0
-                        }, temp_path
-                    
-                    if attempt < self.config.max_retries - 1:
-                        self.logger.warning(f"[{process_id}] API调用失败，重试 {attempt + 1}/{self.config.max_retries}: {e}")
-                        await asyncio.sleep(2 ** attempt)  # 指数退避
+                    # 处理不同类型的响应
+                    if hasattr(response, 'choices') and response.choices:
+                        content = response.choices[0].message.content
+                    elif hasattr(response, 'content'):
+                        content = response.content
                     else:
-                        self.logger.error(f"[{process_id}] API调用最终失败: {e}")
-                        return {
-                            "suitable_for_teens": True,
-                            "reason": f"检查失败，默认通过: {str(e)}",
-                            "confidence": 0.0
-                        }, temp_path
+                        # 处理字符串响应的情况
+                        content = str(response)
+                        # 尝试解析JSON字符串
+                        try:
+                            import json as json_module
+                            if content.startswith('{') and content.endswith('}'):
+                                parsed = json_module.loads(content)
+                                if 'choices' in parsed and parsed['choices']:
+                                    content = parsed['choices'][0]['message']['content']
+                        except:
+                            pass
+                else:
+                    # 使用官方 Gemini API
+                    import io
+                    img_data_bytes = base64.b64decode(img_base64)
+                    pil_image = Image.open(io.BytesIO(img_data_bytes))
+                    
+                    response = self.model.generate_content([prompt, pil_image])
+                    content = response.text
+                
+                # 解析JSON结果
+                try:
+                    if '{' in content and '}' in content:
+                        start = content.find('{')
+                        end = content.rfind('}') + 1
+                        json_str = content[start:end]
+                        result = json.loads(json_str)
+                        self.logger.info(f"[{process_id}] 重试成功 (第 {attempt} 次)")
+                        return result, temp_path
+                    else:
+                        # 关键词判断
+                        if any(word in content.lower() for word in ['不适合', 'false', '不建议']):
+                            self.logger.info(f"[{process_id}] 重试成功 (第 {attempt} 次)")
+                            return {"suitable_for_teens": False, "reason": "AI判断不适合", "confidence": 0.8}, temp_path
+                        else:
+                            self.logger.info(f"[{process_id}] 重试成功 (第 {attempt} 次)")
+                            return {"suitable_for_teens": True, "reason": "AI判断适合", "confidence": 0.8}, temp_path
+                except Exception as parse_error:
+                    # JSON解析失败也不应该默认通过，而是重试
+                    self.logger.warning(f"[{process_id}] 第 {attempt} 次重试JSON解析失败，将继续重试: {parse_error}")
+                    continue
+                
+            except Exception as e:
+                error_str = str(e)
+                
+                if ("SAFETY" in error_str or "BLOCKED" in error_str or
+                    "安全" in error_str or "blocked" in error_str.lower() or
+                    "safety" in error_str.lower()):
+                    self.logger.info(f"[{process_id}] Gemini安全过滤器检测到不适合内容: {image_path}")
+                    with self.lock:
+                        self.stats.skipped_ai_reject += 1
+                    return {
+                        "suitable_for_teens": False,
+                        "reason": "Gemini安全过滤器检测到不适合16岁及以上青少年的内容",
+                        "confidence": 1.0
+                    }, temp_path
+                
+                # 如果是429错误，继续重试
+                elif "429" in error_str or "Too Many Requests" in error_str:
+                    self.logger.warning(f"[{process_id}] 第 {attempt} 次重试遇到429错误，将继续重试")
+                    continue
+                
+                # 如果是网络错误，继续重试
+                elif any(keyword in error_str.lower() for keyword in [
+                    'connection', 'timeout', 'network', 'dns', 'unreachable', 'refused'
+                ]):
+                    self.logger.warning(f"[{process_id}] 第 {attempt} 次重试遇到网络错误: {e}，将继续重试")
+                    continue
+                
+                # 如果是其他错误，记录但继续重试
+                else:
+                    self.logger.warning(f"[{process_id}] 第 {attempt} 次重试失败: {e}，将继续重试")
+                    continue
+
+    async def check_image_safety(self, image_path: str, process_id: str):
+        """检查图片安全性"""
+        temp_path = None
+        
+        try:
+            # 1. 验证图片格式并自适应压缩
+            processed_path = self.validate_and_resize_image(image_path)
+            if processed_path != image_path:
+                temp_path = processed_path
+
+            # 2. 读取图片并转换为Base64
+            with open(processed_path, 'rb') as img_file:
+                img_data = img_file.read()
+
+            img_base64 = base64.b64encode(img_data).decode('utf-8')
+
+            # 检查文件大小
+            base64_size_mb = len(img_base64) / (1024 * 1024)
+            if base64_size_mb > 10:
+                # 图片过大不应该跳过，而是拒绝（更安全的做法）
+                self.logger.warning(f"[{process_id}] 图片过大 ({base64_size_mb:.2f}MB)，出于安全考虑拒绝: {image_path}")
+                return {
+                    "suitable_for_teens": False,
+                    "reason": f"图片过大({base64_size_mb:.2f}MB)，出于安全考虑拒绝",
+                    "confidence": 1.0
+                }, temp_path
+
+            # 3. 调用API（无限重试机制）
+            return await self.retry_with_backoff(image_path, process_id, temp_path, img_base64)
                 
         except Exception as e:
-            self.logger.error(f"[{process_id}] 检查图片时出错: {e}")
-            return {
-                "suitable_for_teens": True,
-                "reason": f"检查失败，默认通过: {str(e)}",
-                "confidence": 0.0
-            }, temp_path
+            self.logger.error(f"[{process_id}] 检查图片时出错，将重试: {e}")
+            return await self.retry_with_backoff(image_path, process_id, temp_path, None)
 
     def move_inappropriate_image(self, image_path: str, reason: str, temp_path: str = None):
         """移动不适合的图片"""

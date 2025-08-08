@@ -5,7 +5,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-基于智谱AI的高性能图片内容审查系统，专为16岁及以上青少年内容标准设计。采用多线程并发架构，支持批量处理，自动分类不适宜内容。
+基于 **Google Gemini AI** 的高性能图片内容审查系统，专为16岁及以上青少年内容标准设计。采用多线程并发架构，支持批量处理，自动分类不适宜内容。支持Gemini官方服务器和自定义代理服务器。
 
 ## ✨ 核心特性
 
@@ -16,7 +16,9 @@
 - **内存优化**: 临时文件管理，避免大图片内存溢出
 
 ### 🧠 AI智能审查
-- **智谱AI GLM-4.1V**: 采用最新视觉理解模型
+- **Gemini AI驱动**: 使用Google最先进的多模态AI模型
+- **多模型支持**: Gemini 1.5 Flash、Gemini 1.5 Pro、Gemini Pro Vision
+- **灵活部署**: 支持官方服务器和自定义代理服务器
 - **多维度检测**: 性暗示、暴露服装、挑逗姿势、未成年性化等
 - **置信度评估**: 0.0-1.0置信度评分，确保判断准确性
 - **文件名检查**: 智能识别文件名中的成人内容关键词
@@ -51,7 +53,8 @@
 │  └── 文件扫描器 (图片发现与分类)                             │
 ├─────────────────────────────────────────────────────────────┤
 │  AI服务层                                                    │
-│  ├── 智谱AI客户端 (ZhipuAI SDK)                             │
+│  ├── OpenAI 兼容客户端 (OpenAI SDK)                         │
+│  ├── 多模型支持 (GPT-4V/Claude/Ollama等)                    │
 │  ├── 图像预处理 (PIL/Pillow)                                │
 │  ├── Base64编码 (图像传输)                                   │
 │  └── JSON解析 (AI响应处理)                                   │
@@ -79,11 +82,19 @@
 - **网络**: 稳定的互联网连接
 - **存储**: 足够的磁盘空间用于图片分类
 
-### 🔑 获取API密钥
-1. 访问 [智谱AI开放平台](https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys)
-2. 注册账号并登录
-3. 创建新的API密钥
-4. 复制密钥备用
+### 🔑 获取Gemini API密钥
+
+#### Google AI Studio（推荐）
+1. 访问 [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. 使用Google账号登录
+3. 点击"Create API Key"创建新的API密钥
+4. 复制生成的API密钥
+
+#### 注意事项
+- **免费额度**: Gemini API提供慷慨的免费使用额度
+- **速度与成本**: Gemini 1.5 Flash模型速度快且成本低
+- **精度要求**: 需要更高精度时可选择Gemini 1.5 Pro
+- **网络访问**: 如需代理访问，可配置自定义服务器URL
 
 ### 💾 安装方式
 
@@ -114,10 +125,12 @@ python image_filter_main.py
 
 ### ⚙️ 配置系统
 首次运行时，选择"配置系统"菜单：
-1. 输入智谱AI的API密钥
-2. 设置并发数量 (建议10-30)
-3. 配置超时时间 (默认60秒)
-4. 指定目标文件夹 (默认"@色图")
+1. 输入 Gemini API 密钥
+2. 配置 API 服务器地址（留空使用官方服务器，或输入代理地址）
+3. 选择模型名称（gemini-1.5-flash、gemini-1.5-pro等）
+4. 设置并发数量 (建议10-30)
+5. 配置超时时间 (默认60秒)
+6. 指定目标文件夹 (默认"@色图")
 
 ## 📊 性能指标
 
@@ -128,9 +141,10 @@ python image_filter_main.py
 - **API延迟**: 可配置 0.1-2.0秒
 
 ### 💡 准确率
-- **AI模型**: GLM-4.1V-Thinking-FlashX
+- **AI模型**: Google Gemini系列视觉模型
+- **推荐模型**: Gemini 1.5 Flash（平衡速度与精度）、Gemini 1.5 Pro（高精度）
 - **置信度阈值**: 可调节
-- **自适应图片压缩**:大图也能审，不会爆token
+- **自适应图片压缩**: 大图也能审，优化处理速度
   
 ### 🛠️ 资源占用
 - **内存使用**: 50-200MB (取决于并发数)
@@ -157,14 +171,25 @@ python image_filter_main.py
 编辑 `filter_config.json`:
 ```json
 {
-    "max_concurrent": 20,     // 最大并发数
-    "api_delay": 0.5,         // API调用延迟(秒)
-    "max_retries": 3,         // 最大重试次数
-    "timeout": 60,            // 超时时间(秒)
-    "target_folder": "@色图", // 目标文件夹
-    "log_level": "INFO"       // 日志级别
+    "api_type": "gemini",                           // API类型
+    "api_base_url": "",                             // API服务器地址（留空使用官方）
+    "api_key": "your-gemini-api-key-here",         // Gemini API密钥
+    "model_name": "gemini-1.5-flash",              // 模型名称
+    "max_concurrent": 20,                           // 最大并发数
+    "api_delay": 0.5,                               // API调用延迟(秒)
+    "max_retries": 3,                               // 最大重试次数
+    "timeout": 60,                                  // 超时时间(秒)
+    "target_folder": "@色图",                       // 目标文件夹
+    "log_level": "INFO"                             // 日志级别
 }
 ```
+
+### 3️⃣ 配置示例
+查看 `config_examples.json` 文件获取不同配置的示例：
+- **官方服务器**: 直接使用Google官方Gemini API
+- **代理服务器**: 通过代理访问Gemini API
+- **不同模型**: Flash（快速）vs Pro（高精度）配置
+- **网络优化**: 保守、推荐、激进等不同网络环境配置
 
 ### 3️⃣ 批量处理
 ```bash
@@ -178,9 +203,10 @@ python image_filter_main.py
 ## ⚠️ 注意事项
 
 ### API使用
-- 确保API密钥有足够的额度
-- 遵守智谱AI的使用条款和限制
-- 建议设置合理的并发数以避免触发限流,v0级别即支持30并发
+- 确保Gemini API密钥有足够的额度
+- 遵守Google AI服务的使用条款和限制
+- 建议设置合理的并发数以避免触发限流
+- 如使用代理服务器，确保代理稳定可靠
 
 ### 内容审查标准
 - 本系统基于16岁及以上青少年标准
@@ -198,14 +224,16 @@ python image_filter_main.py
 
 ## 🙏 致谢
 
-- [智谱AI](https://www.zhipuai.cn/) - 提供强大的AI视觉理解能力
+- [Google AI](https://ai.google.dev/) - 提供强大的Gemini视觉AI能力
+- [Google AI Studio](https://aistudio.google.com/) - 便捷的API密钥管理
 - [PyInstaller](https://www.pyinstaller.org/) - 跨平台打包工具
 - [Pillow](https://pillow.readthedocs.io/) - Python图像处理库
 
 
 ## 🔗 相关链接
 
-- [智谱AI开放平台](https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys) - 获取API密钥
+- [Google AI Studio](https://aistudio.google.com/app/apikey) - 获取Gemini API密钥
+- [Gemini API文档](https://ai.google.dev/docs) - 官方API文档
 - [项目发布页面](https://github.com/guguniu/PicExam/releases) - 下载最新版本
 - [GitHub Actions](https://github.com/guguniu/PicExam/actions) - 查看构建状态
 

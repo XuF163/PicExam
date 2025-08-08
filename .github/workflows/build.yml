@@ -20,16 +20,16 @@ jobs:
         include:
           - os: windows-latest
             platform: windows
-            executable_name: "图片内容过滤系统.exe"
-            artifact_name: "PicExam-Windows"
+            executable_name: "图片内容过滤系统_Gemini版.exe"
+            artifact_name: "PicExam-Gemini-Windows"
           - os: ubuntu-latest
             platform: linux
-            executable_name: "图片内容过滤系统"
-            artifact_name: "PicExam-Linux"
+            executable_name: "图片内容过滤系统_Gemini版"
+            artifact_name: "PicExam-Gemini-Linux"
           - os: macos-latest
             platform: macos
-            executable_name: "图片内容过滤系统"
-            artifact_name: "PicExam-macOS"
+            executable_name: "图片内容过滤系统_Gemini版"
+            artifact_name: "PicExam-Gemini-macOS"
 
     steps:
     - name: Checkout code
@@ -56,27 +56,13 @@ jobs:
     - name: Build executable (Windows)
       if: matrix.platform == 'windows'
       run: |
-        pyinstaller --name="图片内容过滤系统" ^
-          --onefile ^
-          --console ^
-          --clean ^
-          --add-data="ultra_fast_filter.py;." ^
-          --add-data="remove_approval_tags.py;." ^
-          --add-data="filter_config.json;." ^
-          image_filter_main.py
+        python build_openai_version.py
       shell: cmd
 
     - name: Build executable (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        pyinstaller --name="图片内容过滤系统" \
-          --onefile \
-          --console \
-          --clean \
-          --add-data="ultra_fast_filter.py:." \
-          --add-data="remove_approval_tags.py:." \
-          --add-data="filter_config.json:." \
-          image_filter_main.py
+        python build_openai_version.py
 
     - name: Verify build
       run: |
@@ -91,9 +77,12 @@ jobs:
     - name: Copy executable and config files (Windows)
       if: matrix.platform == 'windows'
       run: |
-        if exist "dist\图片内容过滤系统.exe" (
-          copy "dist\图片内容过滤系统.exe" "release\"
+        if exist "图片内容过滤系统_Gemini版.exe" (
+          copy "图片内容过滤系统_Gemini版.exe" "release\"
           echo "Executable copied successfully"
+        ) else if exist "dist\图片内容过滤系统_Gemini版.exe" (
+          copy "dist\图片内容过滤系统_Gemini版.exe" "release\"
+          echo "Executable copied from dist successfully"
         ) else (
           echo "ERROR: Executable not found!"
           exit /b 1
@@ -105,21 +94,26 @@ jobs:
           echo "ERROR: filter_config.json not found!"
           exit /b 1
         )
-        if exist "config.json" (
-          copy "config.json" "release\"
-          echo "config.json copied successfully"
+        if exist "config_examples.json" (
+          copy "config_examples.json" "release\"
+          echo "config_examples.json copied successfully"
         ) else (
-          echo "config.json not found, skipping (optional file)"
+          echo "config_examples.json not found, skipping (optional file)"
         )
-        echo "Build completed for Windows" > "release\README.txt"
+        echo "图片内容过滤系统 - Gemini版 Windows构建" > "release\README.txt"
+        echo "使用Google Gemini AI进行图片内容审查" >> "release\README.txt"
+        echo "支持无限重试机制，确保100%%审查覆盖率" >> "release\README.txt"
       shell: cmd
 
     - name: Copy executable and config files (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        if [ -f "dist/图片内容过滤系统" ]; then
-          cp "dist/图片内容过滤系统" "release/"
+        if [ -f "图片内容过滤系统_Gemini版" ]; then
+          cp "图片内容过滤系统_Gemini版" "release/"
           echo "Executable copied successfully"
+        elif [ -f "dist/图片内容过滤系统_Gemini版" ]; then
+          cp "dist/图片内容过滤系统_Gemini版" "release/"
+          echo "Executable copied from dist successfully"
         else
           echo "ERROR: Executable not found!"
           exit 1
@@ -131,14 +125,16 @@ jobs:
           echo "ERROR: filter_config.json not found!"
           exit 1
         fi
-        if [ -f "config.json" ]; then
-          cp "config.json" "release/"
-          echo "config.json copied successfully"
+        if [ -f "config_examples.json" ]; then
+          cp "config_examples.json" "release/"
+          echo "config_examples.json copied successfully"
         else
-          echo "config.json not found, skipping (optional file)"
+          echo "config_examples.json not found, skipping (optional file)"
         fi
-        echo "Build completed for ${{ matrix.platform }}" > "release/README.txt"
-        chmod +x "release/图片内容过滤系统"
+        echo "图片内容过滤系统 - Gemini版 ${{ matrix.platform }}构建" > "release/README.txt"
+        echo "使用Google Gemini AI进行图片内容审查" >> "release/README.txt"
+        echo "支持无限重试机制，确保100%审查覆盖率" >> "release/README.txt"
+        chmod +x "release/图片内容过滤系统_Gemini版"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

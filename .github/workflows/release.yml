@@ -18,19 +18,19 @@ jobs:
         include:
           - os: windows-latest
             platform: windows
-            executable_name: "图片内容过滤系统.exe"
-            artifact_name: "PicExam-Windows"
-            asset_name: "PicExam-Windows.zip"
+            executable_name: "图片内容过滤系统_Gemini版.exe"
+            artifact_name: "PicExam-Gemini-Windows"
+            asset_name: "PicExam-Gemini-Windows.zip"
           - os: ubuntu-latest
             platform: linux
-            executable_name: "图片内容过滤系统"
-            artifact_name: "PicExam-Linux"
-            asset_name: "PicExam-Linux.zip"
+            executable_name: "图片内容过滤系统_Gemini版"
+            artifact_name: "PicExam-Gemini-Linux"
+            asset_name: "PicExam-Gemini-Linux.zip"
           - os: macos-latest
             platform: macos
-            executable_name: "图片内容过滤系统"
-            artifact_name: "PicExam-macOS"
-            asset_name: "PicExam-macOS.zip"
+            executable_name: "图片内容过滤系统_Gemini版"
+            artifact_name: "PicExam-Gemini-macOS"
+            asset_name: "PicExam-Gemini-macOS.zip"
 
     steps:
     - name: Checkout code
@@ -53,27 +53,13 @@ jobs:
     - name: Build executable (Windows)
       if: matrix.platform == 'windows'
       run: |
-        pyinstaller --name="图片内容过滤系统" ^
-          --onefile ^
-          --console ^
-          --clean ^
-          --add-data="ultra_fast_filter.py;." ^
-          --add-data="remove_approval_tags.py;." ^
-          --add-data="filter_config.json;." ^
-          image_filter_main.py
+        python build_openai_version.py
       shell: cmd
 
     - name: Build executable (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        pyinstaller --name="图片内容过滤系统" \
-          --onefile \
-          --console \
-          --clean \
-          --add-data="ultra_fast_filter.py:." \
-          --add-data="remove_approval_tags.py:." \
-          --add-data="filter_config.json:." \
-          image_filter_main.py
+        python build_openai_version.py
 
     - name: Prepare release files
       run: |
@@ -83,9 +69,12 @@ jobs:
     - name: Copy files (Windows)
       if: matrix.platform == 'windows'
       run: |
-        if exist "dist\图片内容过滤系统.exe" (
-          copy "dist\图片内容过滤系统.exe" "release\"
+        if exist "图片内容过滤系统_Gemini版.exe" (
+          copy "图片内容过滤系统_Gemini版.exe" "release\"
           echo "Executable copied successfully"
+        ) else if exist "dist\图片内容过滤系统_Gemini版.exe" (
+          copy "dist\图片内容过滤系统_Gemini版.exe" "release\"
+          echo "Executable copied from dist successfully"
         ) else (
           echo "ERROR: Executable not found!"
           exit /b 1
@@ -97,22 +86,35 @@ jobs:
           echo "ERROR: filter_config.json not found!"
           exit /b 1
         )
-        if exist "config.json" (
-          copy "config.json" "release\"
-          echo "config.json copied successfully"
+        if exist "config_examples.json" (
+          copy "config_examples.json" "release\"
+          echo "config_examples.json copied successfully"
         ) else (
-          echo "config.json not found, skipping (optional file)"
+          echo "config_examples.json not found, skipping (optional file)"
         )
-        echo "图片内容过滤系统 - Windows版本" > "release\README.txt"
-        echo "使用方法：双击运行 图片内容过滤系统.exe" >> "release\README.txt"
+        if exist "README.md" (
+          copy "README.md" "release\"
+          echo "README.md copied successfully"
+        )
+        if exist "GEMINI_MIGRATION_GUIDE.md" (
+          copy "GEMINI_MIGRATION_GUIDE.md" "release\"
+          echo "GEMINI_MIGRATION_GUIDE.md copied successfully"
+        )
+        echo "图片内容过滤系统 - Gemini版 Windows版本" > "release\使用说明.txt"
+        echo "使用方法：双击运行 图片内容过滤系统_Gemini版.exe" >> "release\使用说明.txt"
+        echo "配置方法：参考 GEMINI_MIGRATION_GUIDE.md" >> "release\使用说明.txt"
+        echo "新特性：支持Google Gemini AI，无限重试机制，100%%审查覆盖率" >> "release\使用说明.txt"
       shell: cmd
 
     - name: Copy files (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        if [ -f "dist/图片内容过滤系统" ]; then
-          cp "dist/图片内容过滤系统" "release/"
+        if [ -f "图片内容过滤系统_Gemini版" ]; then
+          cp "图片内容过滤系统_Gemini版" "release/"
           echo "Executable copied successfully"
+        elif [ -f "dist/图片内容过滤系统_Gemini版" ]; then
+          cp "dist/图片内容过滤系统_Gemini版" "release/"
+          echo "Executable copied from dist successfully"
         else
           echo "ERROR: Executable not found!"
           exit 1
@@ -124,15 +126,25 @@ jobs:
           echo "ERROR: filter_config.json not found!"
           exit 1
         fi
-        if [ -f "config.json" ]; then
-          cp "config.json" "release/"
-          echo "config.json copied successfully"
+        if [ -f "config_examples.json" ]; then
+          cp "config_examples.json" "release/"
+          echo "config_examples.json copied successfully"
         else
-          echo "config.json not found, skipping (optional file)"
+          echo "config_examples.json not found, skipping (optional file)"
         fi
-        echo "图片内容过滤系统 - ${{ matrix.platform }} 版本" > "release/README.txt"
-        echo "使用方法：在终端中运行 ./图片内容过滤系统" >> "release/README.txt"
-        chmod +x "release/图片内容过滤系统"
+        if [ -f "README.md" ]; then
+          cp "README.md" "release/"
+          echo "README.md copied successfully"
+        fi
+        if [ -f "GEMINI_MIGRATION_GUIDE.md" ]; then
+          cp "GEMINI_MIGRATION_GUIDE.md" "release/"
+          echo "GEMINI_MIGRATION_GUIDE.md copied successfully"
+        fi
+        echo "图片内容过滤系统 - Gemini版 ${{ matrix.platform }} 版本" > "release/使用说明.txt"
+        echo "使用方法：在终端中运行 ./图片内容过滤系统_Gemini版" >> "release/使用说明.txt"
+        echo "配置方法：参考 GEMINI_MIGRATION_GUIDE.md" >> "release/使用说明.txt"
+        echo "新特性：支持Google Gemini AI，无限重试机制，100%审查覆盖率" >> "release/使用说明.txt"
+        chmod +x "release/图片内容过滤系统_Gemini版"
 
     - name: Create ZIP archive
       run: |
@@ -176,38 +188,50 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        name: 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+        name: 图片内容过滤系统 Gemini版 ${{ steps.get_version.outputs.VERSION }}
         body: |
-          ## 图片内容过滤系统 ${{ steps.get_version.outputs.VERSION }}
+          ## 图片内容过滤系统 Gemini版 ${{ steps.get_version.outputs.VERSION }}
 
-          ### ✨ 新功能
-          - 基于智谱AI GLM-4.1V的图片内容审查
+          ### 🎯 重大更新：迁移到Google Gemini AI
+          - **全新AI引擎**：从智谱AI迁移到Google Gemini 2.5 Pro
+          - **双模式支持**：支持官方Gemini API和代理服务器
+          - **无限重试机制**：确保100%审查覆盖率，不再有遗漏
+          - **智能异常处理**：自适应并发数调整和指数退避重试
+
+          ### ✨ 核心功能
+          - 基于Google Gemini 2.5 Pro的高精度图片内容审查
           - 支持最高30个并发任务同时进行
           - 自动分类不适宜内容到指定文件夹
-          - 智能文件名检查功能
+          - 智能图片压缩：多级质量压缩确保API兼容性
 
-          ### 🚀 性能优化
-          - 异步IO处理，提升处理速度
-          - 智能重试机制，确保稳定性
-          - 内存优化，支持大批量处理
+          ### 🚀 性能与可靠性优化
+          - **100%审查覆盖率**：移除所有默认通过逻辑
+          - **无限重试**：网络故障和API限流不再导致遗漏
+          - **智能错误处理**：429限流、网络错误自动处理
+          - **自适应延迟**：根据API响应动态调整请求频率
 
           ### 📦 下载说明
-          - **Windows用户**: 下载 `PicExam-Windows.zip`
-          - **Linux用户**: 下载 `PicExam-Linux.zip`
-          - **macOS用户**: 下载 `PicExam-macOS.zip`
+          - **Windows用户**: 下载 `PicExam-Gemini-Windows.zip`
+          - **Linux用户**: 下载 `PicExam-Gemini-Linux.zip`
+          - **macOS用户**: 下载 `PicExam-Gemini-macOS.zip`
 
           ### 🔧 使用方法
           1. 下载对应平台的压缩包
           2. 解压到任意目录
           3. 运行可执行文件
-          4. 配置智谱AI密钥 ([获取地址](https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys))
+          4. 配置Google Gemini API密钥 ([获取地址](https://aistudio.google.com/app/apikey))
           5. 开始批量处理图片
 
           ### 📋 系统要求
           - **Windows**: Windows 10 或更高版本
           - **Linux**: Ubuntu 18.04+ 或其他现代发行版
           - **macOS**: macOS 10.15+ (Catalina)
-          - **网络**: 稳定的互联网连接
+          - **网络**: 稳定的互联网连接（支持Google服务）
+
+          ### 🔄 迁移说明
+          - 从旧版本升级需要重新配置API密钥
+          - 详细迁移指南请参考包内的 `GEMINI_MIGRATION_GUIDE.md`
+          - 支持代理服务器配置以适应不同网络环境
 
           ---
 
